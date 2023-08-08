@@ -1,0 +1,131 @@
+name: CI
+env:
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+on: 
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.toolchain }} / clippy
+    strategy:
+        fail-fast: false
+        matrix:
+            toolchain: [stable, beta]
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: clippy
+          toolchain: ${{ matrix.toolchain }}
+      - name: Run tests
+        run: cargo clippy --workspace --no-deps -- -D warnings 
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Install Dependencies
+        run: |
+          sudo apt -y install at-spi2-core systemd
+      - name: Run Tests (tokio)
+        run: cargo test --workspace --no-default-features --features=unstable-traits,tokio -- --nocapture
+      - name: Run Tests (async-std)
+        run: cargo test --workspace --no-default-features --features=unstable-traits,async-std -- --nocapture
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Run formatter
+        run: cargo fmt --all --check
+  rustdoc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+      - name: Generate Documentation
+        run: cargo doc --workspace --features unstable-traits --no-deps
+  no-unused-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Install Cargo Machete
+        run: cargo install cargo-machete
+      - name: Check For Unused Depdencies
+        run: cargo machete
+  semver-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Install Semver Checks
+        # no default features so that it uses native Rust TLS instead of trying to link with system TLS.
+        run: cargo install cargo-semver-checks --no-default-features
+      - name: Check Semver Compliance
+        run: cargo semver-checks check-release -p atspi --default-features
+  msrv-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Install Cargo MSRV Verifier
+        run: cargo install cargo-msrv
+      - name: Check MSRV Compliance
+        run: cargo msrv --path atspi verify
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install nightly
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - name: cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - name: Install Dependencies
+        run: |
+          sudo apt -y install at-spi2-core systemd
+      - name: cargo llvm-cov
+        run: cargo llvm-cov --workspace --locked --features=unstable-traits --lcov --output-path lcov.info
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
