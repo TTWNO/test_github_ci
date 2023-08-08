@@ -9,6 +9,19 @@ on:
     branches:
       - master
 jobs:
+  clippy_arch:
+    runs-on: arch-latest
+    name: clippy_arch
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+      - name: Install ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: clippy
+          toolchain: nightly
+      - name: Run tests
+        run: cargo clippy --workspace --no-deps -- -D warnings 
   clippy:
     runs-on: ubuntu-latest
     name: ${{ matrix.toolchain }} / clippy
