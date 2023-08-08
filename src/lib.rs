@@ -5,7 +5,7 @@
   //missing_docs,
 )]
 
-// //! My library is to do simple math
+// //! My library is to do simple math and show Github CI
 
 // /// We need documentation to make `missing_docs` work
 pub fn add(left: usize, right: usize) -> usize {
